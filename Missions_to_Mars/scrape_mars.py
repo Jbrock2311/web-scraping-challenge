@@ -1,0 +1,250 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from bs4 import BeautifulSoup\n",
+    "from splinter import Browser\n",
+    "import pandas as pd\n",
+    "import datetime as dt\n",
+    "\n",
+    "executable_path = {\"executable_path\": \"/usr/local/bin/chromedriver\"}\n",
+    "browser = Browser(\"chrome\", **executable_path, headless=False)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Nasa Mars News Web scraper\n",
+    "def mars_news(browser):\n",
+    "    # Visit the NASA Mars News Site\n",
+    "    url = \"https://mars.nasa.gov/news/\"\n",
+    "    browser.visit(url)\n",
+    "\n",
+    "    # Get First List Item & Wait Half a Second If Not Immediately Present\n",
+    "    browser.is_element_present_by_css(\"ul.item_list li.slide\", wait_time=0.5)\n",
+    "    \n",
+    "    html = browser.html\n",
+    "    news_soup = BeautifulSoup(html, \"html.parser\")\n",
+    "\n",
+    "    # Parse\n",
+    "    try:\n",
+    "        slide_element = news_soup.select_one(\"ul.item_list li.slide\")\n",
+    "        slide_element.find(\"div\", class_=\"content_title\")\n",
+    "\n",
+    "        # Scrape\n",
+    "        # Use Parent Element to Find First <a> Tag and Save it as news_title\n",
+    "        news_title = slide_element.find(\"div\", class_=\"content_title\").get_text()\n",
+    "\n",
+    "        news_paragraph = slide_element.find(\"div\", class_=\"article_teaser_body\").get_text()\n",
+    "    except AttributeError:\n",
+    "        return None, None\n",
+    "    return news_title, news_paragraph\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#JPL Web Scraper\n",
+    "def featured_image(browser):\n",
+    "    # Visit the NASA JPL (Jet Propulsion Laboratory) Site\n",
+    "    url = \"https://www.jpl.nasa.gov/spaceimages/?search=&category=Mars\"\n",
+    "    browser.visit(url)\n",
+    "\n",
+    "    # Ask Splinter to Go to Site and Click Button with Class Name full_image\n",
+    "    # <button class=\"full_image\">Full Image</button>\n",
+    "    full_image_button = browser.find_by_id(\"full_image\")\n",
+    "    full_image_button.click()\n",
+    "\n",
+    "    # Find \"More Info\" Button and Click It\n",
+    "    browser.is_element_present_by_text(\"more info\", wait_time=1)\n",
+    "    more_info_element = browser.find_link_by_partial_text(\"more info\")\n",
+    "    more_info_element.click()\n",
+    "\n",
+    "    # Parse \n",
+    "    html = browser.html\n",
+    "    image_soup = BeautifulSoup(html, \"html.parser\")\n",
+    "\n",
+    "    img = image_soup.select_one(\"figure.lede a img\")\n",
+    "    try:\n",
+    "        img_url = img.get(\"src\")\n",
+    "    except AttributeError:\n",
+    "        return None\n",
+    "    \n",
+    "   # Use Base URL to Create Absolute URL\n",
+    "    img_url = f\"https://www.jpl.nasa.gov{img_url}\"\n",
+    "    return img_url"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Mars Weather Scraper\n",
+    "def twitter_weather(browser):\n",
+    "    # Visit the Mars Weather Twitter Account\n",
+    "    url = \"https://twitter.com/marswxreport?lang=en\"\n",
+    "    browser.visit(url)\n",
+    "    \n",
+    "    # Parse \n",
+    "    html = browser.html\n",
+    "    weather_soup = BeautifulSoup(html, \"html.parser\")\n",
+    "    \n",
+    "    # Find a Tweet \n",
+    "    mars_weather_tweet = weather_soup.find(\"div\", \n",
+    "                                       attrs={\n",
+    "                                           \"class\": \"tweet\", \n",
+    "                                            \"data-name\": \"Mars Weather\"\n",
+    "                                        })\n",
+    "   # Search Tweet\n",
+    "    mars_weather = mars_weather_tweet.find(\"p\", \"tweet-text\").get_text()\n",
+    "    return mars_weather"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Mars Facts Scraper\n",
+    "def mars_facts():\n",
+    "    # Visit the Mars Facts Site Using Pandas to Read\n",
+    "    try:\n",
+    "        df = pd.read_html(\"https://space-facts.com/mars/\")[0]\n",
+    "    except BaseException:\n",
+    "        return None\n",
+    "    df.columns=[\"Description\", \"Value\"]\n",
+    "    df.set_index(\"Description\", inplace=True)\n",
+    "\n",
+    "    return df.to_html(classes=\"table table-striped\")\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Mars Hemisphere Scraper\n",
+    "def hemisphere(browser):\n",
+    "    # Visit the USGS Astrogeology Science Center Site\n",
+    "    url = \"https://astrogeology.usgs.gov/search/results?q=hemisphere+enhanced&k1=target&v1=Mars\"\n",
+    "    browser.visit(url)\n",
+    "\n",
+    "    hemisphere_image_urls = []\n",
+    "\n",
+    "    # Get list\n",
+    "    links = browser.find_by_css(\"a.product-item h3\")\n",
+    "    for item in range(len(links)):\n",
+    "        hemisphere = {}\n",
+    "        \n",
+    "        browser.find_by_css(\"a.product-item h3\")[item].click()\n",
+    "\n",
+    "        sample_element = browser.find_link_by_text(\"Sample\").first\n",
+    "        hemisphere[\"img_url\"] = sample_element[\"href\"]\n",
+    "        \n",
+    "        # Get Title\n",
+    "        hemisphere[\"title\"] = browser.find_by_css(\"h2.title\").text\n",
+    "        hemisphere_image_urls.append(hemisphere)\n",
+    "        browser.back()\n",
+    "    return hemisphere_image_urls\n",
+    "\n",
+    "#Helper\n",
+    "def scrape_hemisphere(html_text):\n",
+    "    hemisphere_soup = BeautifulSoup(html_text, \"html.parser\")\n",
+    "    try: \n",
+    "        title_element = hemisphere_soup.find(\"h2\", class_=\"title\").get_text()\n",
+    "        sample_element = hemisphere_soup.find(\"a\", text=\"Sample\").get(\"href\")\n",
+    "    except AttributeError:\n",
+    "        title_element = None\n",
+    "        sample_element = None \n",
+    "    hemisphere = {\n",
+    "        \"title\": title_element,\n",
+    "        \"img_url\": sample_element\n",
+    "    }\n",
+    "    return hemisphere\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "{'news_title': 'NASA Updates Mars 2020 Mission Environmental Review', 'news_paragraph': 'NASA and the Department of Energy have completed a more detailed risk analysis for the Mars 2020 rover launch from Florida.', 'featured_image': 'https://www.jpl.nasa.gov/spaceimages/images/largesize/PIA20057_hires.jpg', 'weather': 'InSight sol 353 (2019-11-24) low -100.6ºC (-149.1ºF) high -23.3ºC (-10.0ºF)\\nwinds from the SSE at 5.8 m/s (13.1 mph) gusting to 21.4 m/s (47.9 mph)\\npressure at 6.70 hPapic.twitter.com/NPmuRAuvQ7', 'facts': '<table border=\"1\" class=\"dataframe table table-striped\">\\n  <thead>\\n    <tr style=\"text-align: right;\">\\n      <th></th>\\n      <th>Value</th>\\n    </tr>\\n    <tr>\\n      <th>Description</th>\\n      <th></th>\\n    </tr>\\n  </thead>\\n  <tbody>\\n    <tr>\\n      <th>Equatorial Diameter:</th>\\n      <td>6,792 km</td>\\n    </tr>\\n    <tr>\\n      <th>Polar Diameter:</th>\\n      <td>6,752 km</td>\\n    </tr>\\n    <tr>\\n      <th>Mass:</th>\\n      <td>6.39 × 10^23 kg (0.11 Earths)</td>\\n    </tr>\\n    <tr>\\n      <th>Moons:</th>\\n      <td>2 (Phobos &amp; Deimos)</td>\\n    </tr>\\n    <tr>\\n      <th>Orbit Distance:</th>\\n      <td>227,943,824 km (1.38 AU)</td>\\n    </tr>\\n    <tr>\\n      <th>Orbit Period:</th>\\n      <td>687 days (1.9 years)</td>\\n    </tr>\\n    <tr>\\n      <th>Surface Temperature:</th>\\n      <td>-87 to -5 °C</td>\\n    </tr>\\n    <tr>\\n      <th>First Record:</th>\\n      <td>2nd millennium BC</td>\\n    </tr>\\n    <tr>\\n      <th>Recorded By:</th>\\n      <td>Egyptian astronomers</td>\\n    </tr>\\n  </tbody>\\n</table>', 'hemispheres': [{'img_url': 'http://astropedia.astrogeology.usgs.gov/download/Mars/Viking/cerberus_enhanced.tif/full.jpg', 'title': 'Cerberus Hemisphere Enhanced'}, {'img_url': 'http://astropedia.astrogeology.usgs.gov/download/Mars/Viking/schiaparelli_enhanced.tif/full.jpg', 'title': 'Schiaparelli Hemisphere Enhanced'}, {'img_url': 'http://astropedia.astrogeology.usgs.gov/download/Mars/Viking/syrtis_major_enhanced.tif/full.jpg', 'title': 'Syrtis Major Hemisphere Enhanced'}, {'img_url': 'http://astropedia.astrogeology.usgs.gov/download/Mars/Viking/valles_marineris_enhanced.tif/full.jpg', 'title': 'Valles Marineris Hemisphere Enhanced'}], 'last_modified': datetime.datetime(2019, 11, 25, 9, 2, 19, 517185)}\n"
+     ]
+    }
+   ],
+   "source": [
+    "#Scraping Bot\n",
+    "def scrape_all():\n",
+    "    executable_path = {\"executable_path\": \"/usr/local/bin/chromedriver\"}\n",
+    "    browser = Browser(\"chrome\", **executable_path, headless=False)\n",
+    "    news_title, news_paragraph = mars_news(browser)\n",
+    "    img_url = featured_image(browser)\n",
+    "    mars_weather = twitter_weather(browser)\n",
+    "    facts = mars_facts()\n",
+    "    hemisphere_image_urls = hemisphere(browser)\n",
+    "    timestamp = dt.datetime.now()\n",
+    "\n",
+    "    data = {\n",
+    "        \"news_title\": news_title,\n",
+    "        \"news_paragraph\": news_paragraph,\n",
+    "        \"featured_image\": img_url,\n",
+    "        \"weather\": mars_weather,\n",
+    "        \"facts\": facts,\n",
+    "        \"hemispheres\": hemisphere_image_urls,\n",
+    "        \"last_modified\": timestamp\n",
+    "    }\n",
+    "    browser.quit()\n",
+    "    return data \n",
+    "\n",
+    "if __name__ == \"__main__\":\n",
+    "    print(scrape_all())"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
